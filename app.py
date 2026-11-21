@@ -1,18 +1,22 @@
-import streamlit as st
-import pandas as pd
-import os
-from datetime import date
-from PIL import Image
 import io
+import os
+from copy import copy
+from datetime import date
 
-# Configuration de la page
-st.set_page_config(page_title="Production & Changements de Moules", layout="wide")
+import openpyxl
+from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
+from openpyxl.utils import get_column_letter
+import pandas as pd
+import streamlit as st
+from PIL import Image
 
-EXCEL_FILE = "suivie des changement.xlsx"
+st.set_page_config(page_title="Production & Changements de Moules - OK PLAST", layout="wide")
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+EXCEL_FILE = os.path.join(BASE_DIR, "suivie des changement.xlsx")
 SHEET_NAME = "Suivie"
-LOGO_FILE = "logo.png"
+LOGO_FILE = os.path.join(BASE_DIR, "logo.png")
 
-# En-tête avec Logo, Titre et Signature
 col_logo, col_title = st.columns([1, 4])
 
 with col_logo:
@@ -53,7 +57,6 @@ def formater_colonne_date(serie):
     return serie.apply(_parse_une_date)
 
 
-# Fonction pour charger et nettoyer les données en toute sécurité
 def charger_donnees():
     if os.path.exists(EXCEL_FILE):
         try:
@@ -67,7 +70,11 @@ def charger_donnees():
                 df["DATE"] = formater_colonne_date(df["DATE"])
 
             if "PIECES PRODUITES" in df.columns:
-                df["PIECES PRODUITES"] = pd.to_numeric(df["PIECES PRODUITES"], errors="coerce").fillna(0).astype(int)
+                df["PIECES PRODUITES"] = (
+                    pd.to_numeric(df["PIECES PRODUITES"], errors="coerce")
+                    .fillna(0)
+                    .astype(int)
+                )
 
             for col in df.columns:
                 if col not in ["PIECES PRODUITES", "DATE"]:
@@ -79,13 +86,12 @@ def charger_donnees():
             st.error(f"⚠️ Erreur de lecture du fichier Excel : {e}")
             return pd.DataFrame()
     else:
-        st.warning(f"⚠️ Le fichier '{EXCEL_FILE}' est introuvable.")
+        st.warning(f"⚠️ Le fichier '{os.path.basename(EXCEL_FILE)}' est introuvable.")
         return pd.DataFrame()
 
 
 df_display = charger_donnees()
 
-# Gestion des accès Administrateur
 st.sidebar.header("🔐 Authentification")
 mode_admin = st.sidebar.checkbox("Mode Administrateur (Saisie / Modification)")
 
@@ -100,13 +106,24 @@ if mode_admin:
 else:
     st.sidebar.info("👁️ Mode consultation / recherche actif.")
 
-# Formulaire de saisie intelligent (Admin)
 if acces_accorde:
     st.subheader("✍️ Nouvelle Saisie Intelligente (Admin)")
 
-    machines_existantes = sorted([m for m in df_display["MACHINE"].unique().tolist() if m]) if "MACHINE" in df_display.columns and not df_display.empty else ["M01", "M02A"]
-    sections_existantes = sorted([s for s in df_display["SECTION"].unique().tolist() if s]) if "SECTION" in df_display.columns and not df_display.empty else ["HENRI(01)"]
-    codes_internes_connus = sorted([c for c in df_display["Code Interne"].unique().tolist() if c]) if "Code Interne" in df_display.columns and not df_display.empty else []
+    machines_existantes = (
+        sorted([m for m in df_display["MACHINE"].unique().tolist() if m])
+        if "MACHINE" in df_display.columns and not df_display.empty
+        else ["M01", "M02A"]
+    )
+    sections_existantes = (
+        sorted([s for s in df_display["SECTION"].unique().tolist() if s])
+        if "SECTION" in df_display.columns and not df_display.empty
+        else ["HENRI(01)"]
+    )
+    codes_internes_connus = (
+        sorted([c for c in df_display["Code Interne"].unique().tolist() if c])
+        if "Code Interne" in df_display.columns and not df_display.empty
+        else []
+    )
 
     def chercher_infos(code_interne):
         if not code_interne or df_display.empty:
@@ -126,7 +143,14 @@ if acces_accorde:
 
         return "", "", ""
 
-    for champ in ["txt_m_deprog", "txt_n_deprog", "txt_mat_deprog", "txt_m_prog", "txt_n_prog", "txt_mat_prog"]:
+    for champ in [
+        "txt_m_deprog",
+        "txt_n_deprog",
+        "txt_mat_deprog",
+        "txt_m_prog",
+        "txt_n_prog",
+        "txt_mat_prog",
+    ]:
         if champ not in st.session_state:
             st.session_state[champ] = ""
 
@@ -153,17 +177,27 @@ if acces_accorde:
 
     with col2:
         st.markdown("##### 🔴 Moule Déprogrammé")
-        st.selectbox("Code Interne", [""] + codes_internes_connus, key="sel_c_deprog", on_change=update_deprog)
-        m_deprog = st.text_input("Nom du Moule", key="txt_m_deprog")
-        n_moule_deprog = st.text_input("N° Moule", key="txt_n_deprog")
-        matiere_deprog = st.text_input("Matière", key="txt_mat_deprog")
+        st.selectbox(
+            "Code Interne",
+            [""] + codes_internes_connus,
+            key="sel_c_deprog",
+            on_change=update_deprog,
+        )
+        st.text_input("Nom du Moule", key="txt_m_deprog")
+        st.text_input("N° Moule", key="txt_n_deprog")
+        st.text_input("Matière", key="txt_mat_deprog")
 
     with col3:
         st.markdown("##### 🟢 Moule Programmé")
-        st.selectbox("Code Interne", [""] + codes_internes_connus, key="sel_c_prog", on_change=update_prog)
-        m_prog = st.text_input("Nom du Moule", key="txt_m_prog")
-        n_moule_prog = st.text_input("N° Moule", key="txt_n_prog")
-        matiere_prog = st.text_input("Matière", key="txt_mat_prog")
+        st.selectbox(
+            "Code Interne",
+            [""] + codes_internes_connus,
+            key="sel_c_prog",
+            on_change=update_prog,
+        )
+        st.text_input("Nom du Moule", key="txt_m_prog")
+        st.text_input("N° Moule", key="txt_n_prog")
+        st.text_input("Matière", key="txt_mat_prog")
 
     col_b1, col_b2 = st.columns(2)
     with col_b1:
@@ -199,7 +233,7 @@ if acces_accorde:
                 "SECTION": choix_section,
                 "MATIERES": mat_deprog_val,
                 "REMARQUE": remarque.strip(),
-                "PIECES PRODUITES": 0
+                "PIECES PRODUITES": 0,
             })
 
         if nom_prog_val or n_prog_val or code_final_prog:
@@ -213,20 +247,85 @@ if acces_accorde:
                 "SECTION": choix_section,
                 "MATIERES": mat_prog_val,
                 "REMARQUE": remarque.strip(),
-                "PIECES PRODUITES": int(pieces)
+                "PIECES PRODUITES": int(pieces),
             })
 
         if lignes_a_ajouter:
             try:
-                df_actuel = pd.read_excel(EXCEL_FILE, sheet_name=SHEET_NAME)
-                df_actuel.columns = df_actuel.columns.astype(str).str.strip()
-                if "MACH" in df_actuel.columns:
-                    df_actuel = df_actuel.drop(columns=["MACH"])
+                wb = openpyxl.load_workbook(EXCEL_FILE)
+                ws = wb[SHEET_NAME]
 
-                df_nouveau = pd.concat([df_actuel, pd.DataFrame(lignes_a_ajouter)], ignore_index=True)
-                with pd.ExcelWriter(EXCEL_FILE, engine="openpyxl", mode="a", if_sheet_exists="replace") as writer:
-                    df_nouveau.to_excel(writer, sheet_name=SHEET_NAME, index=False)
+                headers = [
+                    str(ws.cell(row=1, column=c).value).strip()
+                    for c in range(1, ws.max_column + 1)
+                ]
 
+                fill_transparent = PatternFill(fill_type=None)
+                fill_bleu = PatternFill(start_color="D9E2F3", end_color="D9E2F3", fill_type="solid")
+                thin_side = Side(style="thin", color="D9D9D9")
+                border_ligne = Border(
+                    left=thin_side, right=thin_side, top=thin_side, bottom=thin_side
+                )
+
+                last_row_idx = ws.max_row
+                for ligne_dict in lignes_a_ajouter:
+                    new_row_idx = ws.max_row + 1
+                    est_bleu = new_row_idx % 2 == 1
+
+                    for col_idx, col_name in enumerate(headers, start=1):
+                        val = ligne_dict.get(col_name, "")
+                        if col_name == "PIECES PRODUITES":
+                            try:
+                                val = int(val) if val != "" else 0
+                            except Exception:
+                                val = 0
+                        cell = ws.cell(row=new_row_idx, column=col_idx, value=val)
+
+                        if last_row_idx >= 2:
+                            ref_cell = ws.cell(row=last_row_idx, column=col_idx)
+                            cell.font = copy(ref_cell.font)
+                            cell.alignment = copy(ref_cell.alignment)
+                            cell.number_format = ref_cell.number_format
+                        else:
+                            cell.font = Font(name="Calibri", size=10)
+                            cell.alignment = Alignment(vertical="center")
+
+                        cell.fill = fill_bleu if est_bleu else fill_transparent
+                        cell.border = border_ligne
+
+                for r in range(2, ws.max_row + 1):
+                    fill_r = fill_bleu if (r % 2 == 1) else fill_transparent
+                    for c in range(1, ws.max_column + 1):
+                        cell_r = ws.cell(row=r, column=c)
+                        cell_r.fill = fill_r
+                        cell_r.border = border_ligne
+                        if headers[c - 1] == "DATE":
+                            cell_r.number_format = "@"
+
+                ws.freeze_panes = "A2"
+                last_col_letter = get_column_letter(ws.max_column)
+                ws.auto_filter.ref = f"A1:{last_col_letter}{ws.max_row}"
+
+                largeurs_min = {
+                    "DATE": 14,
+                    "N MOULE": 16,
+                    "Code Interne": 15,
+                    "MOULES PROGRAMMES": 42,
+                    "MOULES DEPROGRAMMES": 42,
+                    "MACHINE": 12,
+                    "SECTION": 16,
+                    "MATIERES": 34,
+                    "REMARQUE": 26,
+                    "PIECES PRODUITES": 18,
+                }
+                for idx, h in enumerate(headers, start=1):
+                    col_letter = get_column_letter(idx)
+                    actuelle = ws.column_dimensions[col_letter].width or 0
+                    cible = largeurs_min.get(h, 15)
+                    if actuelle < cible:
+                        ws.column_dimensions[col_letter].width = cible
+
+                wb.save(EXCEL_FILE)
                 st.success("✅ Saisies enregistrées avec succès !")
                 st.rerun()
             except Exception as e:
@@ -238,28 +337,43 @@ else:
 
 st.markdown("---")
 
-# Historique et Recherche Intelligente
 st.subheader("📊 Historique et Recherche Intelligente")
 
 if not df_display.empty:
     col_f1, col_f2, col_f3, col_f4 = st.columns(4)
 
     with col_f1:
-        machines_dispo = ["Toutes"] + sorted([m for m in df_display["MACHINE"].unique().tolist() if m]) if "MACHINE" in df_display.columns else ["Toutes"]
+        machines_dispo = (
+            ["Toutes"] + sorted([m for m in df_display["MACHINE"].unique().tolist() if m])
+            if "MACHINE" in df_display.columns
+            else ["Toutes"]
+        )
         filtre_mach = st.selectbox("⚙️ Machine", machines_dispo)
 
     with col_f2:
-        sections_dispo = ["Toutes"] + sorted([s for s in df_display["SECTION"].unique().tolist() if s]) if "SECTION" in df_display.columns else ["Toutes"]
+        sections_dispo = (
+            ["Toutes"] + sorted([s for s in df_display["SECTION"].unique().tolist() if s])
+            if "SECTION" in df_display.columns
+            else ["Toutes"]
+        )
         filtre_sect = st.selectbox("🏭 Section", sections_dispo)
 
     with col_f3:
-        codes_dispo = ["Tous"] + sorted([c for c in df_display["Code Interne"].unique().tolist() if c]) if "Code Interne" in df_display.columns else ["Tous"]
+        codes_dispo = (
+            ["Tous"] + sorted([c for c in df_display["Code Interne"].unique().tolist() if c])
+            if "Code Interne" in df_display.columns
+            else ["Tous"]
+        )
         filtre_code = st.selectbox("🏷️ Code Interne", codes_dispo)
 
     with col_f4:
-        filtre_type = st.selectbox("🔄 Type de ligne", ["Tous", "Moules Programmés", "Moules Déprogrammés"])
+        filtre_type = st.selectbox(
+            "🔄 Type de ligne", ["Tous", "Moules Programmés", "Moules Déprogrammés"]
+        )
 
-    recherche_libre = st.text_input("🔎 Recherche rapide (nom de moule, N° moule, matière, remarque...)")
+    recherche_libre = st.text_input(
+        "🔎 Recherche rapide (nom de moule, N° moule, matière, remarque...)"
+    )
 
     df_filtre = df_display.copy()
 
@@ -279,7 +393,9 @@ if not df_display.empty:
 
     if recherche_libre.strip():
         terme = recherche_libre.strip().lower()
-        masque = df_filtre.apply(lambda row: row.astype(str).str.lower().str.contains(terme, na=False).any(), axis=1)
+        masque = df_filtre.apply(
+            lambda row: row.astype(str).str.lower().str.contains(terme, na=False).any(), axis=1
+        )
         df_filtre = df_filtre[masque]
 
     col_info, col_dl = st.columns([3, 1])
@@ -296,7 +412,7 @@ if not df_display.empty:
                 data=output.getvalue(),
                 file_name="suivie_changements_filtre.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
+                use_container_width=True,
             )
 
     column_config_map = {
@@ -309,7 +425,9 @@ if not df_display.empty:
         "SECTION": st.column_config.TextColumn("SECTION", width="medium"),
         "MATIERES": st.column_config.TextColumn("MATIERES", width="medium"),
         "REMARQUE": st.column_config.TextColumn("REMARQUE", width="medium"),
-        "PIECES PRODUITES": st.column_config.NumberColumn("PIECES PRODUITES", width="small", format="%d")
+        "PIECES PRODUITES": st.column_config.NumberColumn(
+            "PIECES PRODUITES", width="small", format="%d"
+        ),
     }
     active_col_config = {k: v for k, v in column_config_map.items() if k in df_filtre.columns}
 
@@ -318,7 +436,7 @@ if not df_display.empty:
         use_container_width=True,
         hide_index=True,
         height=500,
-        column_config=active_col_config
+        column_config=active_col_config,
     )
 else:
     st.info("Aucune donnée à afficher pour le moment.")

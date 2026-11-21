@@ -51,7 +51,6 @@ def convertir_date_ou_serial(val):
     if not s or s.lower() in ("nan", "nat", "none"):
         return ""
 
-    # Gère les nombres de série Excel stockés sous forme de texte (ex: "45762")
     try:
         num = float(s.replace(",", "."))
         if num.is_integer() and 20000 < int(num) < 80000:
@@ -246,20 +245,7 @@ if acces_accorde:
         n_prog_val = st.session_state.get("txt_n_prog", "").strip()
         mat_prog_val = st.session_state.get("txt_mat_prog", "").strip()
 
-        if nom_deprog_val or n_deprog_val or code_final_deprog:
-            lignes_a_ajouter.append({
-                "DATE": date_formatee,
-                "N MOULE": n_deprog_val,
-                "Code Interne": code_final_deprog,
-                "MOULES PROGRAMMES": "",
-                "MOULES DEPROGRAMMES": nom_deprog_val,
-                "MACHINE": choix_mach,
-                "SECTION": choix_section,
-                "MATIERES": mat_deprog_val,
-                "REMARQUE": remarque.strip(),
-                "PIECES PRODUITES": 0,
-            })
-
+        # 1er : Moule Programmé
         if nom_prog_val or n_prog_val or code_final_prog:
             lignes_a_ajouter.append({
                 "DATE": date_formatee,
@@ -272,6 +258,21 @@ if acces_accorde:
                 "MATIERES": mat_prog_val,
                 "REMARQUE": remarque.strip(),
                 "PIECES PRODUITES": int(pieces),
+            })
+
+        # 2e : Moule Déprogrammé
+        if nom_deprog_val or n_deprog_val or code_final_deprog:
+            lignes_a_ajouter.append({
+                "DATE": date_formatee,
+                "N MOULE": n_deprog_val,
+                "Code Interne": code_final_deprog,
+                "MOULES PROGRAMMES": "",
+                "MOULES DEPROGRAMMES": nom_deprog_val,
+                "MACHINE": choix_mach,
+                "SECTION": choix_section,
+                "MATIERES": mat_deprog_val,
+                "REMARQUE": remarque.strip(),
+                "PIECES PRODUITES": 0,
             })
 
         if lignes_a_ajouter:

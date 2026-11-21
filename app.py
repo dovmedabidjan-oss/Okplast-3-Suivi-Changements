@@ -1,7 +1,7 @@
 import io
 import os
 from copy import copy
-from datetime import date
+from datetime import date, datetime, timedelta
 
 import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
@@ -33,28 +33,52 @@ with col_title:
 st.markdown("---")
 
 
-def formater_colonne_date(serie):
-    def _parse_une_date(val):
-        if pd.isna(val):
-            return ""
-        s = str(val).strip()
-        if not s or s.lower() in ("nan", "nat", "none"):
-            return ""
-        for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%d-%m-%Y", "%Y/%m/%d"):
-            try:
-                dt = pd.to_datetime(s, format=fmt)
-                return dt.strftime("%d/%m/%Y")
-            except Exception:
-                pass
-        try:
-            dt = pd.to_datetime(s, dayfirst=True)
-            if pd.notna(dt):
-                return dt.strftime("%d/%m/%Y")
-        except Exception:
-            pass
-        return s
+def convertir_date_ou_serial(val):
+    """Convertit une date ou un numéro de série Excel (ex: 45762) en JJ/MM/AAAA."""
+    if val is None or pd.isna(val):
+        return ""
+    if isinstance(val, datetime):
+        return val.strftime("%d/%m/%Y")
+    if isinstance(val, date):
+        return val.strftime("%d/%m/%Y")
+    if isinstance(val, (int, float)) and not isinstance(val, bool):
+        if 20000 < val < 80000:
+            dt = datetime(1899, 12, 30) + timedelta(days=int(val))
+            return dt.strftime("%d/%m/%Y")
+        return str(int(val))
 
-    return serie.apply(_parse_une_date)
+    s = str(val).strip()
+    if not s or s.lower() in ("nan", "nat", "none"):
+        return ""
+
+    # Gère les nombres de série Excel stockés sous forme de texte (ex: "45762")
+    try:
+        num = float(s.replace(",", "."))
+        if num.is_integer() and 20000 < int(num) < 80000:
+            dt = datetime(1899, 12, 30) + timedelta(days=int(num))
+            return dt.strftime("%d/%m/%Y")
+    except ValueError:
+        pass
+
+    for fmt in ("%d/%m/%Y", "%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%d-%m-%Y", "%Y/%m/%d"):
+        try:
+            dt = datetime.strptime(s, fmt)
+            return dt.strftime("%d/%m/%Y")
+        except ValueError:
+            pass
+
+    try:
+        dt = pd.to_datetime(s, dayfirst=True)
+        if pd.notna(dt):
+            return dt.strftime("%d/%m/%Y")
+    except Exception:
+        pass
+
+    return s
+
+
+def formater_colonne_date(serie):
+    return serie.apply(convertir_date_ou_serial)
 
 
 def charger_donnees():
@@ -293,14 +317,17 @@ if acces_accorde:
                         cell.fill = fill_bleu if est_bleu else fill_transparent
                         cell.border = border_ligne
 
+                col_date_idx = headers.index("DATE") + 1 if "DATE" in headers else None
+
                 for r in range(2, ws.max_row + 1):
                     fill_r = fill_bleu if (r % 2 == 1) else fill_transparent
                     for c in range(1, ws.max_column + 1):
                         cell_r = ws.cell(row=r, column=c)
+                        if col_date_idx and c == col_date_idx:
+                            cell_r.value = convertir_date_ou_serial(cell_r.value)
+                            cell_r.number_format = "@"
                         cell_r.fill = fill_r
                         cell_r.border = border_ligne
-                        if headers[c - 1] == "DATE":
-                            cell_r.number_format = "@"
 
                 ws.freeze_panes = "A2"
                 last_col_letter = get_column_letter(ws.max_column)
